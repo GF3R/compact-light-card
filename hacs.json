@@ -1,6 +1,6 @@
 {
   "name": "Compact Light",
-  "content_in_root": true,
+  "content_in_root": false,
   "render_readme": true,
   "filename": "compact-light-card.js",
   "homeassistant": "2025.10.0"
