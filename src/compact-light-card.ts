@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 
 interface CompactLightCardConfig {
+  type?: string;
   name?: string;
   entities: string[];
 }
@@ -19,6 +20,8 @@ type HomeAssistant = {
 class CompactLightCard extends LitElement {
   private _config?: CompactLightCardConfig;
   public hass?: HomeAssistant;
+  private _brightnessOverrides: Record<string, number> = {};
+  public percentage: number;
 
   static get properties() {
     return {
@@ -34,23 +37,85 @@ class CompactLightCard extends LitElement {
       }
       .row {
         display: grid;
-        grid-template-columns: 1fr auto 140px;
+        grid-template-columns: 44px 1fr 20em;
         align-items: center;
         gap: 8px;
         padding: 6px 0;
       }
-      .name {
+      .icon {
+        border: 0;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: rgba(var(--rgb-primary-color), 0.18);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--primary-color);
+        padding: 0;
+        cursor: pointer;
+      }
+      .icon.on {
+        background: rgba(var(--rgb-primary-color), 0.25);
+        color: var(--accent-color);
+      }
+      .icon.off {
+        background: rgba(var(--rgb-primary-color), 0.12);
+        color: var(--secondary-text-color);
+      }
+      .label {
+        display: grid;
+        gap: 2px;
+      }
+      .name-toggle {
+        display: inline-flex;
+        align-items: center;
+        border: 0;
+        background: transparent;
+        padding: 2px 0;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .percent {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+      }
+      .name-toggle.on {
+        color: var(--accent-color);
+      }
+      .name-toggle.off {
+        color: var(--secondary-text-color);
+      }
       ha-slider {
-        width: 140px;
+        width: 20em;
+     }  
+      ha-slider.on {
+        --ha-slider-thumb-color: var(--accent-color);
+        --ha-slider-indicator-color: var(--accent-color);
+      }
+      ha-slider.off {
+        --ha-slider-thumb-color: var(--secondary-text-color);
+        --ha-slider-indicator-color: var(--secondary-text-color);
       }
       .muted {
         color: var(--secondary-text-color);
       }
     `;
+  }
+
+  static getConfigElement() {
+    return document.createElement("compact-light-card-editor");
+  }
+
+  static getStubConfig() {
+    return {
+      name: "Lights",
+      entities: []
+    };
   }
 
   setConfig(config: CompactLightCardConfig) {
@@ -72,7 +137,14 @@ class CompactLightCard extends LitElement {
   private _setBrightness(entityId: string, value: number) {
     if (!this.hass) return;
     const brightness = Math.max(0, Math.min(255, value));
+    this._brightnessOverrides = { ...this._brightnessOverrides, [entityId]: brightness };
     this.hass.callService("light", "turn_on", { entity_id: entityId, brightness });
+  }
+
+  private _handleBrightnessInput(entityId: string, value: number) {
+    const brightness = Math.max(0, Math.min(255, value));
+    this._brightnessOverrides = { ...this._brightnessOverrides, [entityId]: brightness };
+    this.requestUpdate();
   }
 
   private _renderRow(entityId: string) {
@@ -82,23 +154,58 @@ class CompactLightCard extends LitElement {
     }
 
     const isOn = stateObj.state === "on";
-    const brightness = stateObj.attributes?.brightness ?? 0;
+    const brightnessAttr = stateObj.attributes?.brightness;
+    const override = this._brightnessOverrides[entityId];
+    if (
+      typeof override === "number" &&
+      typeof brightnessAttr === "number" &&
+      Math.abs(brightnessAttr - override) <= 1
+    ) {
+      const nextOverrides = { ...this._brightnessOverrides };
+      delete nextOverrides[entityId];
+      this._brightnessOverrides = nextOverrides;
+    }
+    const brightness =
+      typeof override === "number"
+        ? override
+        : typeof brightnessAttr === "number"
+        ? brightnessAttr
+        : isOn
+        ? 255
+        : 0;
     const name = stateObj.attributes?.friendly_name ?? entityId;
-
+    const percent = Math.round((brightness / 255) * 100);
     return html`
       <div class="row">
-        <div class="name">${name}</div>
-        <ha-entity-toggle
-          .hass=${this.hass}
-          .stateObj=${stateObj}
+        <button
+          class="icon ${isOn ? "on" : "off"}"
           @click=${() => this._toggle(entityId)}
           title=${isOn ? "Turn off" : "Turn on"}
-        ></ha-entity-toggle>
+          type="button"
+        >
+          <ha-icon icon="mdi:lightbulb"></ha-icon>
+        </button>
+        <div class="label">
+          <button
+            class="name-toggle ${isOn ? "on" : "off"}"
+            @click=${() => this._toggle(entityId)}
+            title=${isOn ? "Turn off" : "Turn on"}
+            type="button"
+          >
+            ${name}
+          </button>
+          <div class="percent">${percent}%</div>
+        </div>
         <ha-slider
+          class=${isOn ? "on" : "off"}
           .value=${brightness}
           .min=${0}
           .max=${255}
           .step=${5}
+          @input=${(ev: Event) => {
+            const target = ev.currentTarget as HTMLInputElement;
+            this._handleBrightnessInput(entityId, Number(target.value));
+          }}
           @change=${(ev: Event) => {
             const target = ev.currentTarget as HTMLInputElement;
             this._setBrightness(entityId, Number(target.value));
@@ -130,3 +237,94 @@ customElements.define("compact-light-card", CompactLightCard);
   description: "Show multiple lights with sliders in one card.",
   preview: true
 });
+
+class CompactLightCardEditor extends LitElement {
+  public hass?: HomeAssistant;
+  private _config?: CompactLightCardConfig;
+
+  static get properties() {
+    return {
+      hass: { attribute: false },
+      _config: { state: true },
+    };
+  }
+
+  static styles = css`
+    .form {
+      display: grid;
+      gap: 12px;
+    }
+  `;
+
+  setConfig(config: CompactLightCardConfig) {
+    this._config = {
+      type: config.type ?? "custom:compact-light-card",
+      name: config.name ?? "",
+      entities: Array.isArray(config.entities) ? [...config.entities] : [],
+    };
+  }
+
+  private _emit(config: CompactLightCardConfig) {
+    const next: CompactLightCardConfig = {
+      ...config,
+      type: config.type || "custom:compact-light-card",
+      entities: (config.entities ?? []).map((e) => (e ?? "").trim()).filter(Boolean),
+    };
+
+    this._config = next;
+
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        detail: { config: next },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _valueChanged(ev: CustomEvent) {
+    // ha-form emits { value: { ...updatedConfig } }
+    const value = ev.detail?.value;
+    if (!value) return;
+
+    this._emit({
+      ...this._config!,
+      ...value,
+    });
+  }
+
+  render() {
+    if (!this._config || !this.hass) return null;
+
+    const schema = [
+      {
+        name: "name",
+        label: "Card name",
+        selector: { text: {} },
+      },
+      {
+        name: "entities",
+        label: "Lights",
+        selector: {
+          entity: {
+            domain: "light",
+            multiple: true,   // ✅ multi select
+          },
+        },
+      },
+    ];
+
+    return html`
+      <div class="form">
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config}
+          .schema=${schema}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+      </div>
+    `;
+  }
+}
+
+customElements.define("compact-light-card-editor", CompactLightCardEditor);
