@@ -168,6 +168,7 @@ class CompactLightCard extends LitElement {
 
   private _renderRow(entityId: string) {
     const stateObj = this.hass?.states?.[entityId];
+    console.log(stateObj);
     if (!stateObj) {
       return html`<div class="row muted">${entityId} not found</div>`;
     }
