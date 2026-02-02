@@ -37,7 +37,7 @@ class CompactLightCard extends LitElement {
       }
       .row {
         display: grid;
-        grid-template-columns: 44px 1fr 20em;
+        grid-template-columns: 44px 20em;
         align-items: center;
         gap: 8px;
         padding: 6px 0;
@@ -79,6 +79,21 @@ class CompactLightCard extends LitElement {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      .slider-stack {
+        display: grid;
+        gap: 4px;
+        margin-left: 1em;
+      }
+      .slider-name {
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .slider-percent {
+        font-size: 12px;
+        color: var(--secondary-text-color);
       }
       .percent {
         font-size: 12px;
@@ -185,32 +200,32 @@ class CompactLightCard extends LitElement {
         >
           <ha-icon icon="mdi:lightbulb"></ha-icon>
         </button>
-        <div class="label">
+        <div class="slider-stack">
           <button
-            class="name-toggle ${isOn ? "on" : "off"}"
+            class="slider-name name-toggle ${isOn ? "on" : "off"}"
             @click=${() => this._toggle(entityId)}
             title=${isOn ? "Turn off" : "Turn on"}
             type="button"
           >
             ${name}
           </button>
-          <div class="percent">${percent}%</div>
+          <ha-slider
+            class=${isOn ? "on" : "off"}
+            .value=${brightness}
+            .min=${0}
+            .max=${255}
+            .step=${5}
+            @input=${(ev: Event) => {
+              const target = ev.currentTarget as HTMLInputElement;
+              this._handleBrightnessInput(entityId, Number(target.value));
+            }}
+            @change=${(ev: Event) => {
+              const target = ev.currentTarget as HTMLInputElement;
+              this._setBrightness(entityId, Number(target.value));
+            }}
+          ></ha-slider>
+          <div class="slider-percent">${percent}%</div>
         </div>
-        <ha-slider
-          class=${isOn ? "on" : "off"}
-          .value=${brightness}
-          .min=${0}
-          .max=${255}
-          .step=${5}
-          @input=${(ev: Event) => {
-            const target = ev.currentTarget as HTMLInputElement;
-            this._handleBrightnessInput(entityId, Number(target.value));
-          }}
-          @change=${(ev: Event) => {
-            const target = ev.currentTarget as HTMLInputElement;
-            this._setBrightness(entityId, Number(target.value));
-          }}
-        ></ha-slider>
       </div>
     `;
   }
