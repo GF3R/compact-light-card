@@ -21,7 +21,7 @@ class CompactLightCard extends LitElement {
   private _config?: CompactLightCardConfig;
   public hass?: HomeAssistant;
   private _brightnessOverrides: Record<string, number> = {};
-  public percentage: number;
+  private _lastKnownBrightness: Record<string, number> = {};
 
   static get properties() {
     return {
@@ -150,6 +150,15 @@ class CompactLightCard extends LitElement {
 
   private _toggle(entityId: string) {
     if (!this.hass) return;
+    const lastKnown = this._lastKnownBrightness[entityId];
+    if (typeof lastKnown === "number" && lastKnown > 0) {
+      this._brightnessOverrides = { ...this._brightnessOverrides, [entityId]: lastKnown };
+      this.hass.callService("light", "turn_on", {
+        entity_id: entityId,
+        brightness: lastKnown
+      });
+      return;
+    }
     this.hass.callService("light", "toggle", { entity_id: entityId });
   }
 
@@ -168,18 +177,35 @@ class CompactLightCard extends LitElement {
 
   private _renderRow(entityId: string) {
     const stateObj = this.hass?.states?.[entityId];
-    console.log(stateObj);
     if (!stateObj) {
       return html`<div class="row muted">${entityId} not found</div>`;
     }
 
     const isOn = stateObj.state === "on";
     const brightnessAttr = stateObj.attributes?.brightness;
+    const brightnessPctAttr = stateObj.attributes?.brightness_pct;
+    const supportedColorModes = stateObj.attributes?.supported_color_modes;
+    const supportsBrightness =
+      Array.isArray(supportedColorModes) && supportedColorModes.length > 0
+        ? supportedColorModes.some((mode: string) => mode !== "onoff")
+        : false;
+    const brightnessFromPct =
+      typeof brightnessPctAttr === "number"
+        ? Math.round((brightnessPctAttr / 100) * 255)
+        : undefined;
+    const resolvedBrightnessAttr =
+      typeof brightnessAttr === "number" ? brightnessAttr : brightnessFromPct;
+    if (typeof resolvedBrightnessAttr === "number") {
+      this._lastKnownBrightness = {
+        ...this._lastKnownBrightness,
+        [entityId]: resolvedBrightnessAttr
+      };
+    }
     const override = this._brightnessOverrides[entityId];
     if (
       typeof override === "number" &&
-      typeof brightnessAttr === "number" &&
-      Math.abs(brightnessAttr - override) <= 1
+      typeof resolvedBrightnessAttr === "number" &&
+      Math.abs(resolvedBrightnessAttr - override) <= 1
     ) {
       const nextOverrides = { ...this._brightnessOverrides };
       delete nextOverrides[entityId];
@@ -188,9 +214,11 @@ class CompactLightCard extends LitElement {
     const brightness =
       typeof override === "number"
         ? override
-        : typeof brightnessAttr === "number"
-        ? brightnessAttr
-        : isOn
+        : typeof resolvedBrightnessAttr === "number"
+        ? resolvedBrightnessAttr
+        : typeof this._lastKnownBrightness[entityId] === "number"
+        ? this._lastKnownBrightness[entityId]
+        : isOn && !supportsBrightness
         ? 255
         : 0;
     const name = stateObj.attributes?.friendly_name ?? entityId;
