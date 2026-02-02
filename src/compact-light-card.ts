@@ -37,7 +37,7 @@ class CompactLightCard extends LitElement {
       }
       .row {
         display: grid;
-        grid-template-columns: 44px 20em;
+        grid-template-columns: 44px minmax(0, 1fr);
         align-items: center;
         gap: 8px;
         padding: 6px 0;
@@ -106,15 +106,19 @@ class CompactLightCard extends LitElement {
         color: var(--secondary-text-color);
       }
       ha-slider {
-        width: 20em;
+        width: 100%;
      }  
       ha-slider.on {
         --ha-slider-thumb-color: var(--accent-color);
         --ha-slider-indicator-color: var(--accent-color);
+        --paper-slider-knob-width: 12px;
+        --paper-slider-knob-height: 12px;
       }
       ha-slider.off {
         --ha-slider-thumb-color: var(--secondary-text-color);
         --ha-slider-indicator-color: var(--secondary-text-color);
+        --paper-slider-knob-width: 12px;
+        --paper-slider-knob-height: 12px;
       }
       .muted {
         color: var(--secondary-text-color);
@@ -195,7 +199,6 @@ class CompactLightCard extends LitElement {
         <button
           class="icon ${isOn ? "on" : "off"}"
           @click=${() => this._toggle(entityId)}
-          title=${isOn ? "Turn off" : "Turn on"}
           type="button"
         >
           <ha-icon icon="mdi:lightbulb"></ha-icon>
@@ -204,7 +207,6 @@ class CompactLightCard extends LitElement {
           <button
             class="slider-name name-toggle ${isOn ? "on" : "off"}"
             @click=${() => this._toggle(entityId)}
-            title=${isOn ? "Turn off" : "Turn on"}
             type="button"
           >
             ${name}
@@ -236,7 +238,7 @@ class CompactLightCard extends LitElement {
     }
 
     return html`
-      <ha-card header=${this._config.name ?? "Lights"}>
+      <ha-card>
         ${this._config.entities.map((entityId) => this._renderRow(entityId))}
       </ha-card>
     `;
