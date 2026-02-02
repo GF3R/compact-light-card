@@ -150,6 +150,12 @@ class CompactLightCard extends LitElement {
 
   private _toggle(entityId: string) {
     if (!this.hass) return;
+    const stateObj = this.hass.states?.[entityId];
+    const isOn = stateObj?.state === "on";
+    if (isOn) {
+      this.hass.callService("light", "turn_off", { entity_id: entityId });
+      return;
+    }
     const lastKnown = this._lastKnownBrightness[entityId];
     if (typeof lastKnown === "number" && lastKnown > 0) {
       this._brightnessOverrides = { ...this._brightnessOverrides, [entityId]: lastKnown };
